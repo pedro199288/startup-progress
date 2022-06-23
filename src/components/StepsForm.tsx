@@ -21,13 +21,22 @@ type stepsFormState = {
   showRandomFact: boolean;
 };
 
+const StepsFormContext = React.createContext<
+  | {
+      stepsFormState: stepsFormState;
+      handleCheckboxChange: (e: React.FormEvent<HTMLInputElement>) => void;
+    }
+  | undefined
+>(undefined);
+StepsFormContext.displayName = 'StepsFormContext';
+
 function getInitialFormState(steps: React.ReactElement<StepProps>[]): stepsFormState {
   const stepsInfo: stepsInfo = [];
   const initialFormData: formData = {};
 
   steps.forEach((formStep, index) => {
     if (formStep.type !== Step) {
-      throw new Error('only "Step" component is alloed as StepsForm child');
+      return;
     }
     stepsInfo[index] = {
       fieldsNames: [],
@@ -60,23 +69,15 @@ function getInitialFormState(steps: React.ReactElement<StepProps>[]): stepsFormS
   };
 }
 
-function renderStep(stepElement: React.ReactElement<StepProps>, props: Partial<StepProps>) {
-  return stepElement.type === Step
-    ? React.cloneElement(stepElement, {
-        ...props,
-      })
-    : stepElement;
-}
-
 type StepsFormProps = {
   title: string;
   children: React.ReactElement<StepProps>[];
 };
 
-export default function StepsForm({ title, children: steps }: StepsFormProps) {
+export default function StepsForm({ title, children }: StepsFormProps) {
   const [stepsFormState, setStepsFormState] = useLocalStorage<stepsFormState>(
     'stepsFormState',
-    () => getInitialFormState(steps)
+    () => getInitialFormState(children)
   );
 
   // TODO: add event handler functionality for other types of inputs
@@ -126,20 +127,9 @@ export default function StepsForm({ title, children: steps }: StepsFormProps) {
   return (
     <div className="w-60">
       <h2 className="text-xl font-bold my-4">{title}</h2>
-      {React.Children.map(steps, (step, idx) => {
-        return renderStep(step, {
-          handleChange: handleCheckboxChange,
-          stepInputsData: stepsFormState.stepsInfo[idx].fieldsNames.reduce(
-            (inputsData, fieldName) => {
-              return { ...inputsData, [fieldName]: stepsFormState.formData[fieldName] };
-            },
-            {}
-          ),
-          complete: stepsFormState.stepsInfo[idx].complete,
-          disabled: stepsFormState.stepsInfo[idx].disabled,
-          index: idx,
-        });
-      })}
+      <StepsFormContext.Provider value={{ stepsFormState, handleCheckboxChange }}>
+        {children}
+      </StepsFormContext.Provider>
       {stepsFormState.showRandomFact && (
         <div className="mt-8 text-center">
           <h4 className="font-medium">Random fact:</h4>
@@ -155,3 +145,13 @@ export default function StepsForm({ title, children: steps }: StepsFormProps) {
     </div>
   );
 }
+
+function useStepsForm() {
+  const context = React.useContext(StepsFormContext);
+  if (!context) {
+    throw new Error('useStepsForm must be used within a <StepsForm />');
+  }
+  return context;
+}
+
+export { useStepsForm };
